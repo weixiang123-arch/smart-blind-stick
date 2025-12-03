@@ -1,0 +1,100 @@
+#include <WiFi.h>
+#include <FirebaseESP32.h>
+#include <TinyGPS++.h>
+
+// WiFi Credentials
+const char* ssid = "weixiang";
+const char* password = "weixiang123456";
+
+// Firebase Configuration
+#define FIREBASE_HOST "live-location-ddf7a-default-rtdb.asia-southeast1.firebasedatabase.app"
+#define FIREBASE_API_KEY "AIzaSyBvvzwo6jdmee8u-1iNxNZ_J6UDifB_OAU"
+
+// Firebase objects
+FirebaseConfig firebaseConfig;
+FirebaseAuth firebaseAuth;
+FirebaseData firebaseData;
+
+// GPS Configuration
+TinyGPSPlus gps;
+HardwareSerial gpsSerial(1);
+
+void setup() {
+  Serial.begin(115200);
+  gpsSerial.begin(9600, SERIAL_8N1, 16, 17);
+
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting to WiFi...");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi connected!");
+
+  firebaseConfig.host = FIREBASE_HOST;
+  firebaseConfig.api_key = FIREBASE_API_KEY;
+
+  Serial.println("Connecting to Firebase...");
+  if (Firebase.signUp(&firebaseConfig, &firebaseAuth, "", "")) {
+    Serial.println("Firebase connection established!");
+  } else {
+    Serial.printf("Firebase connection failed: %s\n", firebaseConfig.signer.signupError.message.c_str());
+    while (true);
+  }
+
+  Firebase.begin(&firebaseConfig, &firebaseAuth);
+  Firebase.reconnectWiFi(true);
+}
+
+void loop() {
+  while (gpsSerial.available() > 0) {
+    char c = gpsSerial.read();
+    if (gps.encode(c)) {
+      if (gps.location.isUpdated()) {
+        float latitude = gps.location.lat();
+        float longitude = gps.location.lng();
+
+        // Print GPS data to Serial Monitor
+        Serial.print("Latitude: ");
+        Serial.println(latitude, 6);
+        Serial.print("Longitude: ");
+        Serial.println(longitude, 6);
+
+        // Generate Google Maps URL
+        String googleMapsURL = "https://www.google.com/maps?q=" + String(latitude, 6) + "," + String(longitude, 6);
+        Serial.print("Google Maps URL: ");
+        Serial.println(googleMapsURL);
+
+        // Update latest location
+        String latestPath = "/location/latest";
+        if (Firebase.setFloat(firebaseData, latestPath + "/latitude", latitude)) {
+          Serial.println("Latest latitude updated successfully!");
+        } else {
+          Serial.printf("Failed to update latest latitude: %s\n", firebaseData.errorReason().c_str());
+        }
+
+        if (Firebase.setFloat(firebaseData, latestPath + "/longitude", longitude)) {
+          Serial.println("Latest longitude updated successfully!");
+        } else {
+          Serial.printf("Failed to update latest longitude: %s\n", firebaseData.errorReason().c_str());
+        }
+
+        if (Firebase.setString(firebaseData, latestPath + "/googleMapsURL", googleMapsURL)) {
+          Serial.println("Latest Google Maps URL updated successfully!");
+        } else {
+          Serial.printf("Failed to update latest Google Maps URL: %s\n", firebaseData.errorReason().c_str());
+        }
+
+        // Add to history with a timestamp
+        String timestamp = String(millis()); // Use a proper timestamp in production
+        String historyPath = "/location/history/" + timestamp;
+        if (Firebase.setFloat(firebaseData, historyPath + "/latitude", latitude)) {
+          Serial.println("History latitude updated successfully!");
+        } else {
+          Serial.printf("Failed to update history latitude: %s\n", firebaseData.errorReason().c_str());
+        }
+
+        if (Firebase.setFloat(firebaseData, historyPath + "/longitude", longitude)) {
+          Serial.println("History longitude updated successfully!");
+        } else {
+          Serial.printf("Failed to update history longitude: %s\n", firebaseData

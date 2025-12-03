@@ -1,0 +1,104 @@
+// Define pins for the first ultrasonic sensor
+const int trigPin1 = 9;
+const int echoPin1 = 10;
+
+// Define pins for the second ultrasonic sensor
+const int trigPin2 = 11;
+const int echoPin2 = 12;
+
+// Define pins for LED, Buzzer, Vibration Motor, and LDR
+const int ledPin = 7;
+const int buzzerPin = 8;
+const int vibrationMotorPin = 6;
+const int ldrPin = A0; // Connect A0 pin of LDR to analog pin A0
+
+// Define thresholds
+const int distanceThreshold = 100;   // Adjust as needed for the first sensor
+const int vibrationThreshold = 150;  // Threshold for the second sensor
+const int ldrThreshold = 900;       // Light intensity threshold (adjust as needed)
+
+void setup() {
+  // Initialize serial communication for debugging
+  Serial.begin(9600);
+
+  // Set pin modes for ultrasonic sensors, LED, Buzzer, and Vibration Motor
+  pinMode(trigPin1, OUTPUT);
+  pinMode(echoPin1, INPUT);
+  pinMode(trigPin2, OUTPUT);
+  pinMode(echoPin2, INPUT);
+  pinMode(ledPin, OUTPUT);
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(vibrationMotorPin, OUTPUT);
+}
+
+void loop() {
+  // Measure distance for the first ultrasonic sensor
+  int distance1 = measureDistance(trigPin1, echoPin1);
+
+  // Measure distance for the second ultrasonic sensor
+  int distance2 = measureDistance(trigPin2, echoPin2);
+
+  // Read the analog value from the LDR
+  int ldrValue = analogRead(ldrPin);
+
+  // Debugging: Print sensor values
+  Serial.print("Distance 1: ");
+  Serial.print(distance1);
+  Serial.println(" cm");
+
+  Serial.print("Distance 2: ");
+  Serial.print(distance2);
+  Serial.println(" cm");
+
+  Serial.print("LDR Value: ");
+  Serial.println(ldrValue);
+
+  // Check if light intensity is below the threshold (darkness)
+  if (ldrValue < ldrThreshold) {
+    digitalWrite(ledPin, LOW); // Turn on LED in darkness
+  } else {
+    digitalWrite(ledPin, HIGH); // Turn off LED in bright light
+  }
+
+  // Check if the object is within the threshold distance for the first sensor
+  if (distance1 > 0 && distance1 <= distanceThreshold) {
+    int beepDelay = map(distance1, 10, distanceThreshold, 50, 500);
+    tone(buzzerPin, 2000);
+    delay(beepDelay);
+    noTone(buzzerPin);
+    delay(beepDelay);
+  } else {
+    noTone(buzzerPin);
+  }
+
+  // Check if the object is within the threshold distance for the second sensor
+  if (distance2 > 0 && distance2 <= vibrationThreshold) {
+    int vibrationIntensity = map(distance2, 10, vibrationThreshold, 500, 300);
+    analogWrite(vibrationMotorPin, vibrationIntensity);
+    delay(50);
+  } else {
+    analogWrite(vibrationMotorPin, 0);
+  }
+
+  // Short delay before the next reading
+  delay(100);
+}
+
+// Function to measure distance using an ultrasonic sensor
+int measureDistance(int trigPin, int echoPin) {
+  long duration;
+  int distance;
+
+  // Send a 10-microsecond pulse to trigger pin
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Read the echo pin and calculate the distance
+  duration = pulseIn(echoPin, HIGH);
+  distance = duration * 0.034 / 2;
+
+  return distance;
+}
